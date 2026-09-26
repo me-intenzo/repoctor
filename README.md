@@ -2,13 +2,18 @@
 
 > One command to find secrets, 50MB blobs, and stale junk in your git repos.
 
+[![GitHub release](https://img.shields.io/github/release/me-intenzo/repoctor.svg)](https://github.com/me-intenzo/repoctor/releases/latest)
+[![CI](https://github.com/me-intenzo/repoctor/actions/workflows/ci.yml/badge.svg)](https://github.com/me-intenzo/repoctor/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/me-intenzo/repoctor)](https://goreportcard.com/report/github.com/me-intenzo/repoctor)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 `repoctor` is a single static binary that reads a repository — the working tree
 *and* the whole of its git history — and prints what a reviewer would flag:
 credentials that were committed, files that will bloat every clone forever,
 branches nobody has touched in half a year, and dependencies pinned to versions
 with published CVEs. No config file, no rules to write, no daemon.
 
-![Repoctor scanning a messy repository](showcase/repoctor-demo.gif)
+![repoctor scanning a messy repository](showcase/repoctor-demo.gif)
 
 The demo runs the real scanner against a temporary repository containing a
 tracked `.env`, an unignored `node_modules/`, a `dist/` directory, and a log
@@ -34,8 +39,8 @@ to every release:
 
 **[→ Download from GitHub Releases](https://github.com/me-intenzo/repoctor/releases/latest)**
 
-Linux and macOS archives are `.tar.gz`, Windows is `.zip`. After downloading the
-archive for your platform:
+Linux and macOS archives are `.tar.gz`, Windows is `.zip`. After downloading
+the archive for your platform:
 
 ```bash
 tar -xzf repoctor_*.tar.gz repoctor
@@ -56,15 +61,19 @@ A Homebrew tap is planned; for now the releases page is the supported path.
 ```text
 [CRITICAL] [env-files] committed environment file: .env
   fix: add to .gitignore and remove from history: git rm --cached '.env'
-[WARNING] [gitignore] node_modules/ exists in the repo but .gitignore does not ignore it
+[WARNING]  [gitignore] node_modules/ exists in the repo but .gitignore does not ignore it
   fix: add "node_modules/" to .gitignore
-[WARNING] [gitignore] *.log exists in the repo but .gitignore does not ignore it
+[WARNING]  [gitignore] *.log exists in the repo but .gitignore does not ignore it
   fix: add "*.log" to .gitignore
-[WARNING] [gitignore] dist/ exists in the repo but .gitignore does not ignore it
+[WARNING]  [gitignore] dist/ exists in the repo but .gitignore does not ignore it
   fix: add "dist/" to .gitignore
 
 4 findings
 ```
+
+Severity is printed as plain text — `[CRITICAL]`, `[WARNING]`, `[INFO]` —
+because colored glyphs and emoji render inconsistently across terminals and
+CI logs. `NO_COLOR` is respected.
 
 ## Usage
 
@@ -78,7 +87,7 @@ repoctor
 | --- | --- | --- |
 | `-path` | `.` | Repository to scan. |
 | `-json` | `false` | Emit findings as a JSON array instead of the text report. |
-| `-version` | | Print the version and exit. |
+| `-version` |  | Print the version and exit. |
 
 Single and double dashes both work, so `-json` and `--json` are the same flag.
 
@@ -166,7 +175,7 @@ Six checks run on every invocation, in this order:
 | `env-files` | `.env` and `.env.*` files that git actually tracks. A `.env` sitting ignored in your working tree is fine and is not reported; `.env.example` and `.env.sample` are templates and are skipped. | `critical` |
 | `gitignore` | `node_modules/`, `__pycache__/`, `dist/` or `*.log` present in the repo while the root `.gitignore` does not cover them. Understands anchoring and `!` negation, so a real ignore rule is not reported as a gap. | `warning` |
 | `big-blobs` | Blobs of 5 MB or more anywhere in history, including files that were deleted years ago — they are still in every clone. Each path is reported once, at its largest revision. | `warning`, `critical` at 50 MB |
-| `secrets` | AWS access key IDs, GitHub personal access tokens, and PEM private key blocks, across every text blob under 2 MB in history. Reports the file and the commit that introduced it, and never echoes the credential itself. | `critical` |
+| `secrets` | AWS access key IDs, GitHub personal access tokens, and PEM private key blocks, across every text blob in history. Blobs over 2 MB are skipped for speed and reported as an `info` finding listing how many were skipped — a scan that silently skips a third of your history is worse than an honest skip list. Reports the file and the commit that introduced the credential, and never echoes the credential itself. | `critical` |
 | `stale-branches` | Local and remote-tracking branches with no commit in 180 days. The checked-out branch is never flagged. | `info` |
 | `deps` | Exact versions pinned in `package-lock.json` (v1, v2 and v3) and `go.mod`, matched against a curated list of well-known CVEs. `go.mod` `replace` directives are resolved first, and anything that cannot be ordered confidently — a git hash, a range, a Go pseudo-version — is skipped rather than guessed at. | `warning` |
 
@@ -187,7 +196,7 @@ this is not an attempt to replace them.
 The difference is shape. Gitleaks and TruffleHog do **one** check deeply.
 `repoctor` does **six** checks shallowly, in one command, with no configuration.
 
-| | repoctor | Gitleaks / TruffleHog |
+|  | repoctor | Gitleaks / TruffleHog |
 | --- | --- | --- |
 | Secret detection rules | 3 patterns | 150+ (Gitleaks), 800+ detectors (TruffleHog) |
 | Entropy analysis | ✗ | ✓ |
@@ -207,18 +216,20 @@ read fifteen lines.
 The honest caveats:
 
 - Three secret patterns will miss most secret formats. A clean `secrets` result
-  means "none of those three patterns matched", not "there are no secrets".
+means "none of those three patterns matched", not "there are no secrets".
 - The CVE list is hand-curated and deliberately small. It is not a substitute
-  for `npm audit`, `govulncheck`, or Dependabot.
+for `npm audit`, `govulncheck`, or Dependabot.
 - Only the root `.gitignore` is read; nested `.gitignore` files are not merged.
 
 ## License
 
-[MIT](LICENSE) © Nagesh Tiwari
+[MIT](LICENSE) © me-intenzo
 
 ## Contributing
 
-Issues and pull requests are welcome.
+Issues and pull requests are welcome. If a check fires where it should not,
+open an issue with the `repoctor` output and the repo layout that triggered it
+— false-positive reports are how the check rules get better.
 
 ```bash
 git clone https://github.com/me-intenzo/repoctor
