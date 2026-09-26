@@ -66,6 +66,9 @@ func (SecretsCheck) Run(repoPath string) ([]Finding, error) {
 		if obj.Path == "" || !isTextPath(obj.Path) {
 			continue
 		}
+		if isTestAssetPath(obj.Path) {
+			continue
+		}
 		pathByHash[obj.Hash] = obj.Path
 		hashes = append(hashes, obj.Hash)
 	}

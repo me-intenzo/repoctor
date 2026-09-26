@@ -32,6 +32,9 @@ func (EnvFilesCheck) Run(repoPath string) ([]Finding, error) {
 		if isRepo && !tracked[rel] {
 			return nil // on disk but ignored by git — exactly what we want
 		}
+		if isTestAssetPath(rel) {
+			return nil
+		}
 		committed = append(committed, rel)
 		return nil
 	})
