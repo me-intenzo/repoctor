@@ -1,11 +1,15 @@
-package main
+package checks
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/me-intenzo/repoctor/internal/gitutil"
+	"github.com/me-intenzo/repoctor/internal/scan"
 )
 
 // SecretsCheck scans the contents of every blob in history for credential
@@ -54,33 +58,24 @@ type secretHit struct {
 	Hash string
 }
 
-func (SecretsCheck) Run(repoPath string) ([]Finding, error) {
-	objects, err := listObjects(repoPath)
-	if err != nil {
-		return nil, err
+func (SecretsCheck) Run(repoPath string, inventory *gitutil.Inventory) ([]Finding, error) {
+	if inventory == nil {
+		return nil, errors.New("git object inventory unavailable")
 	}
 
-	pathByHash := make(map[string]string, len(objects))
-	hashes := make([]string, 0, len(objects))
-	for _, obj := range objects {
+	pathByHash := make(map[string]string, len(inventory.Objects))
+	hashes := make([]string, 0, len(inventory.Objects))
+	for _, obj := range inventory.Objects {
 		if obj.Path == "" || !isTextPath(obj.Path) {
-			continue
-		}
-		if isTestAssetPath(obj.Path) {
 			continue
 		}
 		pathByHash[obj.Hash] = obj.Path
 		hashes = append(hashes, obj.Hash)
 	}
 
-	info, err := batchCheck(repoPath, hashes)
-	if err != nil {
-		return nil, err
-	}
-
 	scannable := make([]string, 0, len(hashes))
 	for _, hash := range hashes {
-		if o, ok := info[hash]; ok && o.Type == "blob" && o.Size <= maxSecretScanSize {
+		if o, ok := inventory.Info[hash]; ok && o.Type == "blob" && o.Size <= maxSecretScanSize {
 			scannable = append(scannable, hash)
 		}
 	}
@@ -89,7 +84,8 @@ func (SecretsCheck) Run(repoPath string) ([]Finding, error) {
 	// otherwise be reported once per version of the file.
 	seen := map[string]bool{}
 	var hits []secretHit
-	err = streamBlobs(repoPath, scannable, func(hash string, content []byte) {
+	var err error
+	err = gitutil.StreamBlobs(repoPath, scannable, func(hash string, content []byte) {
 		rel := pathByHash[hash]
 		for _, p := range secretPatterns {
 			if !p.Re.Match(content) {
@@ -114,47 +110,44 @@ func (SecretsCheck) Run(repoPath string) ([]Finding, error) {
 		return hits[i].Type < hits[j].Type
 	})
 
+	introductions, _ := gitutil.BlobIntroductions(repoPath)
 	findings := make([]Finding, 0, len(hits))
 	for _, h := range hits {
+		severity := "critical"
+		message := secretMessage(h, introductions[h.Hash])
+		if scan.IsTestAssetPath(h.Path) {
+			severity = "info"
+			message = "secret-like test/example asset: " + message
+		}
 		findings = append(findings, Finding{
-			Severity: "critical",
+			Severity: severity,
 			Check:    "secrets",
-			Message:  secretMessage(repoPath, h),
+			Message:  message,
 			Fix: fmt.Sprintf("rotate this credential, then purge it from history: git filter-repo --path %s --invert-paths",
-				shellQuote(h.Path)),
+				gitutil.ShellQuote(h.Path)),
 		})
 	}
 	return findings, nil
 }
 
 // secretMessage describes a hit without reproducing the credential itself.
-func secretMessage(repoPath string, h secretHit) string {
+func secretMessage(h secretHit, introduction gitutil.Introduction) string {
 	msg := fmt.Sprintf("%s in %s", h.Type, h.Path)
-	commit, date := introducingCommit(repoPath, h.Hash)
-	if commit == "" {
+	if introduction.Commit == "" {
 		return msg
 	}
-	if date != "" {
-		return fmt.Sprintf("%s (commit %s, %s)", msg, commit, date)
+	if introduction.Date != "" {
+		return fmt.Sprintf("%s (commit %s, %s)", msg, introduction.Commit, introduction.Date)
 	}
-	return fmt.Sprintf("%s (commit %s)", msg, commit)
-}
-
-// introducingCommit finds the oldest commit that added or removed the blob —
-// that is, the commit that first brought the file into history.
-func introducingCommit(repoPath, hash string) (commit, date string) {
-	lines, err := gitLines(repoPath, "log", "--all", "--reverse",
-		"--format=%h %ad", "--date=short", "--find-object="+hash)
-	if err != nil || len(lines) == 0 {
-		return "", ""
-	}
-	commit, date, _ = strings.Cut(lines[0], " ")
-	return commit, date
+	return fmt.Sprintf("%s (commit %s)", msg, introduction.Commit)
 }
 
 // isTextPath reports whether a path is worth scanning for secrets.
 func isTextPath(p string) bool {
 	base := strings.ToLower(path.Base(p))
+	if strings.HasPrefix(base, ".env.") {
+		return true
+	}
 	// Dotfiles such as .npmrc and .netrc hold tokens and have no extension as
 	// far as path.Ext is concerned.
 	if strings.HasPrefix(base, ".") && !strings.Contains(base[1:], ".") {

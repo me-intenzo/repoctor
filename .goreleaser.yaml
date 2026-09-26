@@ -5,6 +5,8 @@ project_name: repoctor
 builds:
   - env:
       - CGO_ENABLED=0
+    ldflags:
+      - '-s -w -X github.com/me-intenzo/repoctor/internal/version.Version={{ .Version }}'
     goos:
       - linux
       - darwin

@@ -1,0 +1,9 @@
+/repoctor.exe
+/dist/
+
+# Python tooling and caches
+__pycache__/
+*.py[cod]
+
+# Generated showcase frames
+/showcase/repoctor-demo-*.png

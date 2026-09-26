@@ -1,4 +1,4 @@
-package main
+package checks
 
 import (
 	"fmt"
@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/me-intenzo/repoctor/internal/gitutil"
 )
 
 // StaleBranchesCheck lists branches whose last commit is older than half a
@@ -17,10 +19,10 @@ const staleBranchDays = 180
 
 func (StaleBranchesCheck) Name() string { return "stale-branches" }
 
-func (StaleBranchesCheck) Run(repoPath string) ([]Finding, error) {
-	// %09 is a tab. Branch names cannot contain one and refnames contain no
-	// spaces, so the three fields stay unambiguous.
-	lines, err := gitLines(repoPath, "branch", "-a",
+func (StaleBranchesCheck) Run(repoPath string, _ *gitutil.Inventory) ([]Finding, error) {
+	// branch --format uses %09 as a hex-escaped tab; git log's format language
+	// uses %x09 for the same byte, so do not copy this format string between them.
+	lines, err := gitutil.GitLines(repoPath, "branch", "-a",
 		"--format=%(HEAD)%09%(refname)%09%(committerdate:unix)")
 	if err != nil {
 		return nil, err
@@ -89,7 +91,7 @@ func (StaleBranchesCheck) Run(repoPath string) ([]Finding, error) {
 // deletes it. A remote branch needs a push, not a local delete.
 func branchTarget(refname string) (name, fix string, ok bool) {
 	if short, isLocal := strings.CutPrefix(refname, "refs/heads/"); isLocal {
-		return short, "git branch -d " + shellQuote(short), true
+		return short, "git branch -d " + gitutil.ShellQuote(short), true
 	}
 
 	rest, isRemote := strings.CutPrefix(refname, "refs/remotes/")
@@ -100,5 +102,5 @@ func branchTarget(refname string) (name, fix string, ok bool) {
 	if !found || branch == "" {
 		return "", "", false
 	}
-	return rest, fmt.Sprintf("git push %s --delete %s", shellQuote(remote), shellQuote(branch)), true
+	return rest, fmt.Sprintf("git push %s --delete %s", gitutil.ShellQuote(remote), gitutil.ShellQuote(branch)), true
 }

@@ -1,10 +1,13 @@
-package main
+package checks
 
 import (
 	"fmt"
 	"io/fs"
 	"sort"
 	"strings"
+
+	"github.com/me-intenzo/repoctor/internal/gitutil"
+	"github.com/me-intenzo/repoctor/internal/scan"
 )
 
 // EnvFilesCheck flags environment files that were actually committed. A
@@ -20,20 +23,20 @@ var envPlaceholders = map[string]bool{
 
 func (EnvFilesCheck) Name() string { return "env-files" }
 
-func (EnvFilesCheck) Run(repoPath string) ([]Finding, error) {
-	tracked, isRepo := trackedFiles(repoPath)
+func (EnvFilesCheck) Run(repoPath string, _ *gitutil.Inventory) ([]Finding, error) {
+	tracked, err := gitutil.TrackedFiles(repoPath)
+	if err != nil {
+		return nil, fmt.Errorf("inspect tracked files: %w", err)
+	}
 
 	var committed []string
-	err := walkRepo(repoPath, func(path string, d fs.DirEntry, err error) error {
+	err = scan.WalkRepo(repoPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !isEnvFileName(d.Name()) {
 			return nil
 		}
-		rel := relPath(repoPath, path)
-		if isRepo && !tracked[rel] {
+		rel := scan.RelPath(repoPath, path)
+		if !tracked[rel] {
 			return nil // on disk but ignored by git — exactly what we want
-		}
-		if isTestAssetPath(rel) {
-			return nil
 		}
 		committed = append(committed, rel)
 		return nil
@@ -45,11 +48,17 @@ func (EnvFilesCheck) Run(repoPath string) ([]Finding, error) {
 	sort.Strings(committed)
 	findings := make([]Finding, 0, len(committed))
 	for _, rel := range committed {
+		severity := "critical"
+		message := "committed environment file: " + rel
+		if scan.IsTestAssetPath(rel) {
+			severity = "info"
+			message = "environment file in test/example asset: " + rel
+		}
 		findings = append(findings, Finding{
-			Severity: "critical",
+			Severity: severity,
 			Check:    "env-files",
-			Message:  "committed environment file: " + rel,
-			Fix:      fmt.Sprintf("add to .gitignore and remove from history: git rm --cached %s", shellQuote(rel)),
+			Message:  message,
+			Fix:      fmt.Sprintf("add to .gitignore and remove from history: git rm --cached %s", gitutil.ShellQuote(rel)),
 		})
 	}
 	return findings, nil

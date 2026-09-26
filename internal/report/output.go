@@ -1,17 +1,21 @@
-package main
+package report
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/me-intenzo/repoctor/internal/finding"
 )
 
-func printFindings(findings []Finding, asJSON bool) {
+func PrintFindings(findings []finding.Finding, asJSON bool) error {
+	if findings == nil {
+		findings = []finding.Finding{}
+	}
 	if asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		enc.Encode(findings)
-		return
+		return enc.Encode(findings)
 	}
 	for _, f := range findings {
 		icon := "ℹ️ "
@@ -27,4 +31,5 @@ func printFindings(findings []Finding, asJSON bool) {
 		}
 	}
 	fmt.Printf("\n%d findings\n", len(findings))
+	return nil
 }

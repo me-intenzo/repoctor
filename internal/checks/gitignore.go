@@ -1,4 +1,4 @@
-package main
+package checks
 
 import (
 	"fmt"
@@ -7,6 +7,9 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/me-intenzo/repoctor/internal/gitutil"
+	"github.com/me-intenzo/repoctor/internal/scan"
 )
 
 // GitignoreCheck warns when a repo holds generated trees or log files that
@@ -30,7 +33,7 @@ var gitignoreTargets = []gitignoreTarget{
 
 func (GitignoreCheck) Name() string { return "gitignore" }
 
-func (GitignoreCheck) Run(repoPath string) ([]Finding, error) {
+func (GitignoreCheck) Run(repoPath string, _ *gitutil.Inventory) ([]Finding, error) {
 	patterns, hasGitignore, err := readGitignore(repoPath)
 	if err != nil {
 		return nil, err
@@ -39,7 +42,7 @@ func (GitignoreCheck) Run(repoPath string) ([]Finding, error) {
 	// Record one example per target, so coverage is judged against a real path
 	// rather than the glob we happen to print.
 	found := map[string]string{}
-	err = walkRepo(repoPath, func(p string, d fs.DirEntry, err error) error {
+	err = scan.WalkRepo(repoPath, func(p string, d fs.DirEntry, err error) error {
 		if err != nil || p == repoPath {
 			return nil
 		}
@@ -55,7 +58,7 @@ func (GitignoreCheck) Run(repoPath string) ([]Finding, error) {
 				continue
 			}
 			if _, seen := found[t.Pattern]; !seen {
-				found[t.Pattern] = relPath(repoPath, p)
+				found[t.Pattern] = scan.RelPath(repoPath, p)
 			}
 			if t.IsDir {
 				return fs.SkipDir // never walk a whole dependency tree

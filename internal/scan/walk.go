@@ -1,4 +1,4 @@
-package main
+package scan
 
 import (
 	"io/fs"
@@ -16,9 +16,9 @@ var skipDirs = map[string]bool{
 	"venv":         true,
 }
 
-// walkRepo visits every entry under root except the trees in skipDirs. The
+// WalkRepo visits every entry under root except the trees in skipDirs. The
 // callback may return fs.SkipDir to prune a directory itself.
-func walkRepo(root string, fn fs.WalkDirFunc) error {
+func WalkRepo(root string, fn fs.WalkDirFunc) error {
 	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			// A single unreadable entry is not worth failing the whole check.
@@ -37,9 +37,9 @@ func walkRepo(root string, fn fs.WalkDirFunc) error {
 	})
 }
 
-// relPath renders a walk path as a slash-separated path relative to root, which
+// RelPath renders a walk path as a slash-separated path relative to root, which
 // is how git reports the same file.
-func relPath(root, path string) string {
+func RelPath(root, path string) string {
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
 		return filepath.ToSlash(path)
