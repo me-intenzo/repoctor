@@ -4,6 +4,7 @@
 # Python tooling and caches
 __pycache__/
 *.py[cod]
+*.py
 
 # Generated showcase frames
 /showcase/repoctor-demo-*.png
