@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/me-intenzo/repoctor/internal/checks"
-	"github.com/me-intenzo/repoctor/internal/finding"
-	"github.com/me-intenzo/repoctor/internal/gitutil"
 	"github.com/me-intenzo/repoctor/internal/report"
+	"github.com/me-intenzo/repoctor/internal/run"
+	"github.com/me-intenzo/repoctor/internal/tui"
 	"github.com/me-intenzo/repoctor/internal/version"
 )
 
 func main() {
 	repoPath := flag.String("path", ".", "path to repo")
 	jsonOut := flag.Bool("json", false, "output as JSON")
+	tuiOut := flag.Bool("tui", false, "interactive terminal UI")
 	showVersion := flag.Bool("version", false, "print version")
 	flag.Parse()
 	if *showVersion {
@@ -22,22 +22,15 @@ func main() {
 		return
 	}
 
-	all := []finding.Finding{}
-	checkFailed := false
-	inventory, inventoryErr := gitutil.LoadInventory(*repoPath)
-	for _, c := range checks.All() {
-		if inventoryErr != nil && (c.Name() == "big-blobs" || c.Name() == "secrets") {
-			inventory = nil
+	if *tuiOut {
+		if err := tui.Run(*repoPath); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
 		}
-		findings, err := c.Run(*repoPath, inventory)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "check %s failed: %v\n", c.Name(), err)
-			checkFailed = true
-			all = append(all, finding.Finding{Severity: "error", Check: c.Name(), Message: "check failed: " + err.Error()})
-			continue
-		}
-		all = append(all, findings...)
+		return
 	}
+
+	all, checkFailed := run.All(*repoPath)
 
 	if err := report.PrintFindings(all, *jsonOut); err != nil {
 		fmt.Fprintf(os.Stderr, "write report: %v\n", err)
@@ -54,3 +47,4 @@ func main() {
 		os.Exit(2)
 	}
 }
+

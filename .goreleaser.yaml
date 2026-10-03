@@ -3,7 +3,24 @@ version: 2
 project_name: repoctor
 
 builds:
-  - env:
+  - id: full
+    binary: repoctor
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - '-s -w -X github.com/me-intenzo/repoctor/internal/version.Version={{ .Version }}'
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+  - id: cli
+    binary: repoctor-cli
+    flags:
+      - -tags=clionly
+    env:
       - CGO_ENABLED=0
     ldflags:
       - '-s -w -X github.com/me-intenzo/repoctor/internal/version.Version={{ .Version }}'
@@ -16,7 +33,18 @@ builds:
       - arm64
 
 archives:
-  - formats:
+  - id: full
+    builds: [full]
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+  - id: cli
+    builds: [cli]
+    name_template: '{{ .ProjectName }}-cli_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    formats:
       - tar.gz
     format_overrides:
       - goos: windows

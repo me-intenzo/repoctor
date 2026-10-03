@@ -32,6 +32,12 @@ scanned.
 repoctor --path .
 ```
 
+Or explore findings interactively:
+
+```bash
+repoctor --tui
+```
+
 Use `--json` when another tool or a CI job needs to consume the report:
 
 ```bash
@@ -44,6 +50,12 @@ Pre-built binaries for Linux, macOS and Windows (amd64 and arm64) are attached
 to every release:
 
 **[Download from GitHub Releases](https://github.com/me-intenzo/repoctor/releases/latest)**
+
+Every release ships two flavors:
+
+- `repoctor_*` — the full binary, with both the CLI and the interactive TUI
+  (`repoctor --tui`).
+- `repoctor-cli_*` — a smaller, CLI-only binary. `--tui` is not compiled in.
 
 Linux and macOS archives are `.tar.gz`, Windows is `.zip`. After downloading
 the archive for your platform:

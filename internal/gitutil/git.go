@@ -300,3 +300,21 @@ func StreamBlobs(repoPath string, hashes []string, fn func(hash string, content 
 	}
 	return nil
 }
+
+// RemoteURL returns the origin URL of the repo, or "" if none is set.
+func RemoteURL(repoPath string) string {
+	out, err := runGit(repoPath, "remote", "get-url", "origin")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// UserName returns the configured git user name, or "" if unset.
+func UserName(repoPath string) string {
+	out, err := runGit(repoPath, "config", "user.name")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
